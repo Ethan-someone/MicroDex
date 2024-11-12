@@ -53,14 +53,15 @@ class TradeView(View):
                 "You have already locked your proposal!", ephemeral=True
             )
             return
+        await interaction.response.defer(thinking=True, ephemeral=True)
         await self.trade.lock(trader)
         if self.trade.trader1.locked and self.trade.trader2.locked:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Your proposal has been locked. Now confirm again to end the trade.",
                 ephemeral=True,
             )
         else:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Your proposal has been locked. "
                 "You can wait for the other user to lock their proposal.",
                 ephemeral=True,
@@ -95,6 +96,7 @@ class ConfirmView(View):
     def __init__(self, trade: TradeMenu):
         super().__init__(timeout=90)
         self.trade = trade
+        self.cooldown_duration = timedelta(seconds=5)
 
     async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
         try:
@@ -263,8 +265,21 @@ class TradeMenu:
             self.embed.description = (
                 "Both users locked their propositions! Now confirm to conclude this trade."
             )
+            self.embed.set_footer(
+                text=(
+                    "Please review the trade proposals. A 5-second cooldown is mandatory "
+                    "between locking and accepting this trade."
+                )
+            )
             self.current_view = ConfirmView(self)
+
+            self.current_view.accept_button.disabled = True
             await self.message.edit(content=None, embed=self.embed, view=self.current_view)
+            await asyncio.sleep(5)
+            self.current_view.accept_button.disabled = False
+            await self.message.edit(content=None, embed=self.embed, view=self.current_view)
+        else:
+            pass
 
     async def user_cancel(self, trader: TradingUser):
         """
